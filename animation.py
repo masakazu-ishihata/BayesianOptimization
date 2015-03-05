@@ -6,6 +6,7 @@
 import numpy as np
 from matplotlib import pyplot as pl
 from matplotlib import animation
+
 from BayesianOptimization import BayesianOptimization
 from BayesianOptimization import argmaxrand
 
@@ -18,7 +19,7 @@ from BayesianOptimization import argmaxrand
 ########################################
 # black_box = f(x) + n
 # f = lambda x : x * np.sin(4*np.pi*x) * np.cos(3*np.pi*x)
-f = lambda x : x * np.sin(4 * np.pi * x)
+f = lambda x : 10 * x * np.sin(4 * np.pi * x) + 100
 n = lambda h : h * np.random.randn()
 black_box = lambda x : f(x) + n(0.01)
 
@@ -36,8 +37,9 @@ h, l = m0+1.0, m1-1.0
 ########################################
 # Bayesian Optimization
 ########################################
-params = [1.0, 1.0, 1.0, 1.0, 1.0]
+params = [1.0, 25.0, 0.0, 0.0, 0.1]
 bo = BayesianOptimization(D, params=params)
+
 
 ########################################
 # for animation
@@ -54,6 +56,7 @@ f_acqu, = ax.plot([], [], "r-", label="A(x)")  # acquisition function
 p_old,  = ax.plot([], [], "go")  # old points
 p_max,  = ax.plot([], [], "ro")  # maximum point
 
+
 ########################################
 # animation frame
 ########################################
@@ -68,13 +71,13 @@ def myplot(_):
 
     # plot mean + var
     mean  = bo.mean()
-    sigma = bo.cov() ** 1/2
+    sigma = bo.sigma()
     f_mean.set_data(D, mean)
     f_var1.set_data(D, mean + 2*sigma)
     f_var2.set_data(D, mean - 2*sigma)
 
     # plot acquisition function
-    a = bo.acquisition_function("ts")
+    a = bo.acquisition_function("ei")
     f_acqu.set_data(D, a)
 
     # plot old points
@@ -89,7 +92,8 @@ def myplot(_):
     bo.add(x, y)
 
     # likelihood
-    print step, bo.likelihood()
+    print step, bo.gp.likelihood(), bo.gp.params
+
 
 ########################################
 # amimation

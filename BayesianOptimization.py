@@ -4,6 +4,7 @@
 # import
 ################################################################################
 import numpy as np
+from scipy.stats import norm
 from GaussianProcess import GaussianProcess
 
 ################################################################################
@@ -31,6 +32,10 @@ class BayesianOptimization:
         # gaussian process
         self.gp = GaussianProcess(X0, params=params)
 
+        # best
+        self.max_x = None
+        self.max_y = 0
+
     ########################################
     # Acquisition Function
     ########################################
@@ -39,43 +44,75 @@ class BayesianOptimization:
 
         # Thompson Sampling (TS)
         if acq == "ts" or acq == "thompsonsampling":
-            return self.gp.sample()
+            return self.gp.sample() # f ~ p(f|D)
 
         # Maximum Mean (MM)
         elif acq == "mm" or acq == "maximummean":
-            return self.gp.mean()
+            return self.gp.mean()   # E[f]
 
         # Probability of Improvement (PI)
         elif acq == "pi" or acq == "probabilityofimprovement":
+            m = self.mean()
+            s = self.sigma()
+            z = (m - self.max_y) / s
+            cdf = norm.cdf(z)
+            return cdf
+
+        # Expected Improvement (EI)
+        elif acq == "ei" or acq == "expectedimprovement":
+            m = self.mean()
+            s = self.sigma()
+            z = (m - self.max_y) / s
+            pdf = norm.pdf(z)
+            cdf = norm.cdf(z)
+            return s * (z * cdf + pdf)
+
+        # Bayes Gap
+        elif acq == "bg" or acq == "bayesgap":
             return np.zeros(self.gp.n)
 
-        # others : random
+        # others : Random Sampling (RS)
         else:
             return np.zeros(self.gp.n)
 
     ########################################
     # next point
     ########################################
-    def next(self):
-        a = self.acquisition_function()
+    def next(self, acq="ei"):
+        a = self.acquisition_function(acq)
         return gp.X0[ np.argmaxrand(a) ]
+
+    ########################################
+    # best point
+    ########################################
+    def best(self):
+        return self.max_x, self.max_y
 
     ########################################
     # add
     ########################################
     def add(self, x, y, n=10):
+        # add point
         self.gp.add(x, y)
         if n > 0:
             self.gp.update_params(n)
 
+        # check
+        if self.max_x is None or self.max_y < y:
+            self.max_y = y
+            self.max_x = x
+
     ########################################
-    # mean & cov
+    # mean, var, sigma, z
     ########################################
+    #### mean ####
     def mean(self):
         return self.gp.mean()
 
-    def cov(self):
-        return self.gp.cov()
+    #### variance ####
+    def var(self):
+        return self.gp.var()
 
-    def likelihood(self):
-        return self.gp.likelihood()
+    #### standard deviation ####
+    def sigma(self):
+        return self.gp.sigma()

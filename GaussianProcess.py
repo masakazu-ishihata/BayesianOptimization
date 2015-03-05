@@ -26,15 +26,6 @@ def Gram(X, th=[1.0, 1.0, 1.0, 1.0]):
 def dist(D, d, th):
     return th[0] * np.exp(-th[1] * D / 2) + th[2] + th[3] * d
 
-def extend(X):
-    n, m = X.shape
-    if m == 0:
-        return np.array([[0]])
-    else:
-        A = np.concatenate((X, np.zeros((1, n))), axis=0)
-        B = np.concatenate((A, np.zeros((m+1, 1))), axis=1)
-        return B
-
 ########################################
 # positive semi-definite matrix
 ########################################
@@ -59,8 +50,8 @@ class GaussianProcess:
     # X0 = a number of input points
     # return:
     # a Gauusian process G(m0, K0)
-    # m[x]    = mean vector
-    # C[x, y] = kernel(x, y, params)
+    # m0[x]    = mean vector for x in X0
+    # K0[x, y] = kernel(x, y, params) for x, y in X0
     ########################################
     def __init__(self, X0, m=None, params=[1, 1, 1, 1, 1]):
         #### params ####
@@ -143,7 +134,7 @@ class GaussianProcess:
         self.xs.append(x)
         self.ys.append(y)
 
-        # update data X, y
+        # update X, y
         self.X = np.array( self.xs ).reshape(self.l, self.d)
         self.y = np.array( self.ys ).reshape(self.l, 1)
 
@@ -153,9 +144,13 @@ class GaussianProcess:
     #### fit model for (X, y) ####
     def fit(self, X, y):
         self.l = len(X)
+
+        # update lists
+        self.idx = [ np.argmax( self.X0 == x ) for x in X ]
         self.xs = list(X)
         self.ys = list(y)
 
+        # update X, y
         self.X = X
         self.y = y
 
@@ -186,13 +181,23 @@ class GaussianProcess:
 
 
     ########################################
-    # mean & covariance
+    # mean, covariance, variance
     ########################################
+    #### posterior mean m ####
     def mean(self):
         return self.m.reshape(self.n)
 
+    #### posterior covariance K ####
     def cov(self):
+        return self.K
+
+    #### posteriror variance diag(K) ####
+    def var(self):
         return np.array( [self.K[i, i] for i in xrange(self.n)] )
+
+    #### posterior standard deviation ####
+    def sigma(self):
+        return self.var() ** 0.5
 
 
     ########################################
