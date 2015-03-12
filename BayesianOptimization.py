@@ -47,11 +47,11 @@ class BayesianOptimization:
             return self.gp.sample() # f ~ p(f|D)
 
         # Maximum Mean (MM)
-        elif acq == "mm" or acq == "maximummean":
+        if acq == "mm" or acq == "maximummean":
             return self.gp.mean()   # E[f]
 
         # Probability of Improvement (PI)
-        elif acq == "pi" or acq == "probabilityofimprovement":
+        if acq == "pi" or acq == "probabilityofimprovement":
             m = self.mean()
             s = self.sigma()
             z = (m - self.max_y) / s
@@ -59,7 +59,7 @@ class BayesianOptimization:
             return cdf
 
         # Expected Improvement (EI)
-        elif acq == "ei" or acq == "expectedimprovement":
+        if acq == "ei" or acq == "expectedimprovement":
             m = self.mean()
             s = self.sigma()
             z = (m - self.max_y) / s
@@ -68,19 +68,18 @@ class BayesianOptimization:
             return s * (z * cdf + pdf)
 
         # Bayes Gap
-        elif acq == "bg" or acq == "bayesgap":
+        if acq == "bg" or acq == "bayesgap":
             return np.zeros(self.gp.n)
 
         # others : Random Sampling (RS)
-        else:
-            return np.zeros(self.gp.n)
+        return np.zeros(self.gp.n)
 
     ########################################
     # next point
     ########################################
     def next(self, acq="ei"):
         a = self.acquisition_function(acq)
-        return gp.X0[ np.argmaxrand(a) ]
+        return self.gp.X0[ argmaxrand(a) ]
 
     ########################################
     # best point

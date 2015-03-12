@@ -30,7 +30,12 @@ def dist(D, d, th):
 # positive semi-definite matrix
 ########################################
 def isPSD(A):
-    E, V = np.linalg.eigh(A)
+    try:
+        E, V = np.linalg.eigh(A)
+    except:
+        # fail SVD => A is not PSD (assumption)
+        return False
+
     return np.all(E > 0)
 
 def makePSD(C, n=1e-5):
