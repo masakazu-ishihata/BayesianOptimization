@@ -60,7 +60,7 @@ black_box = lambda x : f(x) + n(0.001)
 
 # domain
 s, t = 0, 1
-D = np.arange(s, t, .001)
+D = np.arange(s, t, .01)
 D = D.reshape(len(D), 1)
 
 # true y
@@ -82,7 +82,7 @@ fig = pl.figure(figsize=(10, 10))
 gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
 
 # f(x), m(x), A(x)
-ax1 = fig.add_subplot(gs[0], title="f(x) = %s, A(x) = %s"%(f_str, acq.upper()))
+ax1 = fig.add_subplot(gs[0], title="f(x) = %s, A(x|D_t) = %s, |X*| = %d"%(f_str, acq.upper(), len(D)))
 ax1.set_ylim(l, h)
 ax1.set_xlim(s, t)
 f_true, = ax1.plot([], [], "b-")  # true function
@@ -91,8 +91,9 @@ f_var1, = ax1.plot([], [], "g--") # mean + sigma
 f_var2, = ax1.plot([], [], "g--") # mean - sigma
 f_acq1, = ax1.plot([], [], "r-")  # acquisition function
 p_old,  = ax1.plot([], [], "go")  # old points
-p_max,  = ax1.plot([], [], "ro")  # maximum point
-t_step  = ax1.text(0.05, 0.9, '', transform=ax1.transAxes)
+p_new,  = ax1.plot([], [], "ro")  # new point
+p_max,  = ax1.plot([], [], "*", markersize=20)  # maximum point
+t_step  = ax1.text(0.05, 0.9, '', transform=ax1.transAxes, fontsize=20)
 ax1.legend((f_true, f_mean, f_acq1), ("f(x)", "m(x)", "A(x)"), loc="upper right")
 
 # A(x)
@@ -111,7 +112,7 @@ def myplot(_):
     step += 1
 
     # plot test
-    t_step.set_text("n = %d"%(step))
+    t_step.set_text("t = %d"%(step))
 
     # plot true func
     f_true.set_data(D, y_true)
@@ -136,10 +137,13 @@ def myplot(_):
     # plot old points
     p_old.set_data(bo.gp.X, bo.gp.y)
 
+    # plot max point
+    p_max.set_data(bo.max_x, bo.max_y)
+
     # plot new point
     x = D[ argmaxrand(a) ]
     y = black_box(x)
-    p_max.set_data(x, y)
+    p_new.set_data(x, y)
 
     # update model
     global N
@@ -151,7 +155,7 @@ def myplot(_):
 ########################################
 # amimation
 ########################################
-ani = animation.FuncAnimation(fig, myplot, frames=nfs, interval=1)
+ani = animation.FuncAnimation(fig, myplot, frames=nfs, interval=1000.0 / fps)
 
 if gif is None:
     pl.show()

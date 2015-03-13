@@ -26,24 +26,6 @@ def Gram(X, th=[1.0, 1.0, 1.0, 1.0]):
 def dist(D, d, th):
     return th[0] * np.exp(-th[1] * D / 2) + th[2] + th[3] * d
 
-########################################
-# positive semi-definite matrix
-########################################
-def isPSD(A):
-    try:
-        E, V = np.linalg.eigh(A)
-    except:
-        # fail SVD => A is not PSD (assumption)
-        return False
-
-    return np.all(E > 0)
-
-def makePSD(C, n=1e-5):
-    if isPSD(C):
-        return C
-    else:
-        return makePSD(C + n * np.identity(len(C)), n=n*10)
-
 
 ################################################################################
 # Gaussian Process
@@ -68,7 +50,7 @@ class GaussianProcess:
         self.X0_euc = euclidean_distances(X0) ** 2 # euclidean distance
         self.X0_dot = np.dot(X0, X0.T)             # dot
 
-        #### prior ####
+        #### prior GP(m0, K0) over X0 ####
         # default = zero-mean
         if m is None:
             m = np.zeros(self.n).reshape(self.n, 1)
@@ -76,9 +58,9 @@ class GaussianProcess:
         self.m0 = m
         self.K0 = dist(self.X0_euc, self.X0_dot, params)
 
-        #### posterior (over X0) ####
+        #### posterior GP(m, K) over X0 ####
         self.m = self.m0
-        self.K = makePSD(self.K0)
+        self.K = self.K0
 
         #### observations ####
         self.l = 0
@@ -92,10 +74,11 @@ class GaussianProcess:
         self.X_euc = None
         self.y_euc = None
 
-        self.C = None         # C = K(X, X) + (params[4] ** 2) + I
-        self.C_inv = None     # C^-1
-        self.kx = None        # kx = K(X0, X)
-        self.a = None         # a = kx.T C^-1
+        # intermediate values
+        self.C  = None # C = K(X, X) + (params[4] ** 2) + I
+        self.L  = None # L = cholesky(C)
+        self.kx = None # kx = K(X0, X)
+        self.al = None # al = L.T \ (L \ y)
 
 
     ########################################
@@ -105,26 +88,34 @@ class GaussianProcess:
     def compute_K0(self):
         self.K0 = dist(self.X0_euc, self.X0_dot, self.params)
 
-    # C & C^-1
+    # C
     def compute_C(self):
         I = np.identity(self.l)
         K = dist(self.X_euc, self.X_dot, self.params) # K(X, X)
         self.C = K + (self.params[4] ** 2) * I
-        self.C_inv = np.linalg.solve(self.C, I)
 
-    # kx & a
+    # L
+    def compute_L(self):
+        I = np.identity(self.l)
+        self.L = np.linalg.cholesky(self.C)
+        self.L_inv = np.linalg.solve(self.L, I)
+
+    # kx
     def compute_kx(self):
         self.kx = kernel(self.X0, self.X, self.params)
-        self.a  = np.dot(self.kx, self.C_inv)
+
+    # al
+    def compute_al(self):
+        self.al = np.dot(self.L_inv.T, np.dot(self.L_inv, self.y))
 
     # posterior mean m
     def compute_m(self):
-        self.m = self.m0 + np.dot(self.a, self.y - self.m0[ self.idx ])
+        self.m = np.dot(self.kx, self.al)
 
     # posterior covariance K
     def compute_K(self):
-        self.K = self.K0 - np.dot(self.a, self.kx.T)
-        self.K = makePSD(self.K)
+        self.k = np.dot(self.L_inv, self.kx.T)
+        self.K = self.K0 - np.dot(self.k.T, self.k)
 
 
     ########################################
@@ -168,9 +159,11 @@ class GaussianProcess:
         self.X_euc = euclidean_distances(self.X) ** 2
         self.X_dot = np.dot(self.X, self.X.T)
 
-        # update C, C^-1, kx, a
+        # update C, L, kx, al
         self.compute_C()
+        self.compute_L()
         self.compute_kx()
+        self.compute_al()
 
         # update posterior
         self.compute_m()
@@ -209,11 +202,10 @@ class GaussianProcess:
     # likelihood
     ########################################
     def likelihood(self):
-        sign, logdet = np.linalg.slogdet(self.C)
-        t1 = float( np.dot(self.y.T, np.dot(self.C_inv, self.y)) / 2.0 )
-        t2 = logdet / 2.0
+        t1 = np.dot(self.y.T, self.al) / 2.0
+        t2 = sum( np.diag(self.L) )
         t3 = self.l * np.log(2 * np.pi) / 2.0
-        return -(t1 + t2 + t3) / self.l
+        return float( -(t1 + t2 + t3) )
 
 
     ########################################
@@ -240,13 +232,10 @@ class GaussianProcess:
             self.change_params(prs[i])
             lls[i] = self.likelihood()
 
-        # test
-        # for i in xrange(n):
-        #    print prs[i], lls[i]
-
         # update
         i = np.argmax(lls)
         self.change_params( prs[i] )
+
 
     #### change hyper parameters to params ####
     def change_params(self, params):
@@ -255,9 +244,11 @@ class GaussianProcess:
         # recompute prior
         self.compute_K0()
 
-        # recompute C, C^-1, kx, a
+        # recompute C, L, kx, al
         self.compute_C()
+        self.compute_L()
         self.compute_kx()
+        self.compute_al()
 
         # recompute posteriror
         self.compute_m()
